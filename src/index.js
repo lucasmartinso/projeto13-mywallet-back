@@ -24,7 +24,7 @@ mongoClient.connect(() => {
 
 app.post("/registration", async (req,res) => { 
     const tamanho = await db.collection('registration').find().toArray();
-    console.log(tamanho.length);
+    
     const userData = {
         id: tamanho.length + 1,
         name: req.body.name, 
@@ -70,12 +70,21 @@ app.post("/registration", async (req,res) => {
         return;
     } 
 
-    res.sendStatus(201);
+    res.send(
+        {
+            id: userData.id,
+            name: userData.name, 
+            email: userData.email,
+            password: criptografPassword, 
+            confirmPassword: criptografConfirmPassword
+        }
+    ).status(201);
 }); 
 
 app.post("/login", async (req,res) => {  
     const loginData = req.body; 
-    const token = req.headers.token; 
+    const token = uuid();
+    console.log(token); 
 
     const loginSchema = joi.object({
         email: joi.string().email().required(), 
@@ -108,7 +117,7 @@ app.post("/login", async (req,res) => {
         return;
     } 
 
-    res.sendStatus(200);
+    res.send({token}).status(200);
 });  
 
 app.get("/records", async (req,res) => {  
