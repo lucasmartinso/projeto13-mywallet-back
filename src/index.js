@@ -84,7 +84,6 @@ app.post("/registration", async (req,res) => {
 app.post("/login", async (req,res) => {  
     const loginData = req.body; 
     const token = uuid();
-    console.log(token); 
 
     const loginSchema = joi.object({
         email: joi.string().email().required(), 
@@ -110,19 +109,33 @@ app.post("/login", async (req,res) => {
             res.status(401).send("Senha errada"); 
             return;
         } 
-        await db.collection('login').insertOne(loginData);
+        await db.collection('login').insertOne(loginData); 
+        await db.collection('sessions').insertOne({ 
+            token, 
+            userId: verifUser._id
+        });
     } catch(error) { 
         console.log(error); 
         res.status(500).send("Erro ao criar usuário"); 
         return;
     } 
 
-    res.send({token}).status(200);
+    const findUserName = await db.collection('registration').findOne({email: req.body.email});
+    res.send({
+        token: token, 
+        name: findUserName.name
+    }).status(200);
 });  
 
 app.get("/records", async (req,res) => {  
     const { authorization } = req.headers; 
     const token = authorization?.replace('Bearer ', ''); 
+
+    const sessions = await db.collection('sessions').findOne({token: token});
+    if(!sessions) { 
+        res.sendStatus(401);
+        return;
+    }
 
     try {
         const records = await db.collection('enterExit').find().toArray(); 
@@ -151,7 +164,7 @@ app.post("/revenue", async (req,res) => {
     let hoje = now.format("DD/MM");   
 
     const revenueData = { 
-        value: req.body.value, 
+        value: Number(req.body.value), 
         description: req.body.description, 
         type: "entrada", 
         date: hoje
@@ -162,7 +175,12 @@ app.post("/revenue", async (req,res) => {
         return;
     } 
 
-    try {
+    const sessions = await db.collection('sessions').findOne({token});
+        if(!sessions) { 
+            res.sendStatus(401);
+        }
+
+    try { 
         await db.collection('enterExit').insertOne(revenueData);
         const revenues = await db.collection('enterExit').find().toArray();
         console.log(revenues)
@@ -189,7 +207,7 @@ app.post("/outgoing", async (req,res) => {
     let hoje = now.format("DD/MM");   
 
     const outgoingData = {
-        value: req.body.value, 
+        value: Number(req.body.value), 
         description: req.body.description, 
         type: "saida", 
         date: hoje
@@ -199,6 +217,11 @@ app.post("/outgoing", async (req,res) => {
         res.status(422).send("Dados inválidos");
         return;
     } 
+
+    const sessions = await db.collection('sessions').findOne({token});
+        if(!sessions) { 
+            res.sendStatus(401);
+        }
 
     try {
         await db.collection('enterExit').insertOne(outgoingData); 
