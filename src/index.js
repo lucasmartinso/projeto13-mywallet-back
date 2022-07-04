@@ -53,7 +53,6 @@ app.post("/registration", async (req,res) => {
 
     const criptografPassword = bcrypt.hashSync(req.body.password, 10);
     const criptografConfirmPassword = bcrypt.hashSync(req.body.confirmPassword, 10);
-    console.log(criptografPassword);
 
     try {
         const findRepetead = await db.collection('registration').findOne({email: req.body.email}); 
@@ -99,7 +98,8 @@ app.post("/login", async (req,res) => {
 
     try { 
          
-        const verifUser = await db.collection('registration').findOne({email: req.body.email});
+        const verifUser = await db.collection('registration').findOne({email: req.body.email}); 
+        console.log(verifUser);
         if(!verifUser) {
             res.status(409).send("Email não cadastrado, digite novamente ou faça o cadastro!"); 
             return;
@@ -120,10 +120,12 @@ app.post("/login", async (req,res) => {
         return;
     } 
 
-    const findUserName = await db.collection('registration').findOne({email: req.body.email});
+    const findUserName = await db.collection('registration').findOne({email: req.body.email}); 
+    console.log(findUserName);
     res.send({
         token: token, 
-        name: findUserName.name
+        name: findUserName.name, 
+        id: new ObjectId(findUserName._id)
     }).status(200);
 });  
 
@@ -135,11 +137,12 @@ app.get("/records", async (req,res) => {
     if(!sessions) { 
         res.sendStatus(401);
         return;
-    }
+    } 
+    console.log(sessions);
 
     try {
-        const records = await db.collection('enterExit').find().toArray(); 
-        console.log(records); 
+        const records = await db.collection('enterExit').find({id: new ObjectId(sessions.userId)}).toArray();  
+        console.log(records);
         res.status(200).send(records);
         return;
     } catch (error) {
@@ -163,27 +166,31 @@ app.post("/revenue", async (req,res) => {
     let now = dayjs().locale('pt-br');
     let hoje = now.format("DD/MM");   
 
+    if(validationRevenue.error) { 
+        res.status(422).send("Dados inválidos"); 
+        return;
+    } 
+
+    const sessions = await db.collection('sessions').findOne({token}); 
+    console.log(sessions);
+        if(!sessions) { 
+            res.sendStatus(401);
+        } 
+
     const revenueData = { 
+        id: sessions.userId,
         value: Number(req.body.value), 
         description: req.body.description, 
         type: "entrada", 
         date: hoje
-    }; 
+    };  
 
-    if(validationRevenue.error) { 
-        res.status(422).send("Dados inválidos");
-        return;
-    } 
-
-    const sessions = await db.collection('sessions').findOne({token});
-        if(!sessions) { 
-            res.sendStatus(401);
-        }
+    console.log(revenueData);
 
     try { 
         await db.collection('enterExit').insertOne(revenueData);
         const revenues = await db.collection('enterExit').find().toArray();
-        console.log(revenues)
+        console.log(revenues);
     } catch (error) {
         console.log(error);
         res.status(500).send("Erro ao criar nova entrada");
@@ -206,13 +213,6 @@ app.post("/outgoing", async (req,res) => {
     let now = dayjs().locale('pt-br');
     let hoje = now.format("DD/MM");   
 
-    const outgoingData = {
-        value: Number(req.body.value), 
-        description: req.body.description, 
-        type: "saida", 
-        date: hoje
-    }; 
-
     if(validationOutgoing.error) { 
         res.status(422).send("Dados inválidos");
         return;
@@ -221,7 +221,15 @@ app.post("/outgoing", async (req,res) => {
     const sessions = await db.collection('sessions').findOne({token});
         if(!sessions) { 
             res.sendStatus(401);
-        }
+        } 
+    
+    const outgoingData = { 
+        id: sessions.userId,
+        value: Number(req.body.value), 
+        description: req.body.description, 
+        type: "saida", 
+        date: hoje
+    }; 
 
     try {
         await db.collection('enterExit').insertOne(outgoingData); 
